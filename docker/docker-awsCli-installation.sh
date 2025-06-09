@@ -1,70 +1,58 @@
 #!/bin/bash
 
-# Update the package list and install prerequisites
-sudo apt-get update
-sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+set -e  # Exit on any error
 
-# Add Docker's official GPG key
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-
-# Set up the stable repository
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-
-# Update the package list again
-sudo apt-get update
-
-# Install Docker CE
-sudo apt-get install -y docker-ce
-
-# Check Docker version
-docker --version
-
-# Check Docker status (non-interactive)
-if systemctl is-active --quiet docker; then
-    echo "Docker is running."
-else
-    echo "Docker is not running. Attempting to start Docker..."
-    sudo systemctl start docker
-    if systemctl is-active --quiet docker; then
-        echo "Docker started successfully."
-    else
-        echo "Failed to start Docker."
-        exit 1
-    fi
-fi
-
-# Add the docker group if it doesn't already exist
-sudo groupadd docker
-
-# Add the current user to the docker group
-sudo usermod -aG docker ${USER}
-
-# Apply the new group membership without re-login
-exec sg docker newgrp `id -gn`
-
-# Run a test Docker container
-docker run hello-world
-
-# Print a message indicating completion
-echo "Docker installation and setup completed successfully."
-
-
-
-
-# Update packages
+echo "Updating system packages..."
 sudo apt update -y
+sudo apt upgrade -y
 
-# Install unzip and curl
-sudo apt install -y unzip curl
+echo "Installing required dependencies..."
+sudo apt install -y \
+    curl \
+    unzip \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common
 
-# Download AWS CLI v2
+### --- Install Docker ---
+echo "Installing Docker..."
+
+# Add Docker’s official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Set up the Docker stable repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine
+sudo apt update -y
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+
+# Enable and start Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Add current user to the docker group
+sudo usermod -aG docker $USER
+
+### --- Install AWS CLI v2 ---
+echo "Installing AWS CLI v2..."
+
+cd /tmp
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-
-# Unzip the installer
 unzip awscliv2.zip
-
-# Run the installer
 sudo ./aws/install
 
-# Verify installation
+# Verify installations
+echo "Verifying Docker installation..."
+docker --version
+
+echo "Verifying AWS CLI installation..."
 aws --version
+
+echo "Installation complete! You may need to log out and log back in for Docker group permissions to apply."
